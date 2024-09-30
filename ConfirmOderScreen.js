@@ -6,9 +6,9 @@ import { firestore, auth } from '../config/firebase';
 import { doc, getDoc, updateDoc, setDoc, collection } from 'firebase/firestore';
 import { CartContext } from '../context/CartContext';
 import { useNavigation } from '@react-navigation/native';
-import axios from 'axios'; // Import axios for HTTP requests
 import { products } from './data'; // Ensure this path is correct
-import { btoa } from 'base-64';
+import axios from 'axios';
+import { useRoute } from '@react-navigation/native';
 
 // Helper function to find a product by ID
 const getProductById = (id) => {
@@ -18,7 +18,6 @@ const getProductById = (id) => {
 const OrderScreen = () => {
   const navigation = useNavigation();
   const { cartItems, clearCart } = useContext(CartContext);
-
   const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [newAddress, setNewAddress] = useState('');
@@ -27,7 +26,8 @@ const OrderScreen = () => {
   const [loading, setLoading] = useState(false);
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [editAddressId, setEditAddressId] = useState(null);
-
+  const route = useRoute();
+  const { points } = route.params; // Get points from route params
   const userId = auth.currentUser?.uid;
 
   const fetchAddresses = async () => {
@@ -157,129 +157,101 @@ const OrderScreen = () => {
       "Are you sure you want to place this order?",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "OK", onPress: async () => {
-            setLoading(true);
+        { text: "OK", onPress: async () => {
+          setLoading(true);
   
-            // Fetch the user's profile to get the username
-            let userName;
-            try {
-              const userRef = doc(firestore, 'users', userId);
-              const userSnap = await getDoc(userRef);
-              if (userSnap.exists()) {
-                userName = userSnap.data().displayName; // Ensure correct field name
-                if (!userName) {
-                  throw new Error("User name not found");
-                }
-              } else {
-                throw new Error("User document does not exist");
+          // Fetch the user's profile to get the username
+          let userName;
+          try {
+            const userRef = doc(firestore, 'users', userId);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+              userName = userSnap.data().displayName; // Ensure correct field name
+              if (!userName) {
+                throw new Error("User name not found");
               }
-            } catch (error) {
-              console.error("Error fetching user profile: ", error);
-              Alert.alert("Error", "There was an issue fetching the user profile. Please try again.");
-              setLoading(false);
-              return;
+            } else {
+              throw new Error("User document does not exist");
             }
-  
-            const formattedItems = cartItems.map(item => {
-              const product = getProductById(item.id);
-              if (!product) {
-                console.log(`Product with ID ${item.id} not found.`);
-              }
-              return {
-                id: item.id,
-                name: product.name || 'Unknown Product',
-                description: product.description || 'No Description',
-                quantity: item.quantity,
-                price: product.price || 'N/A',
-              };
-            });
-  
-            const orderDetails = {
-              items: formattedItems,
-              total: calculateTotalPrice(),
-              delivery: deliveryMethod,
-              address: addresses.find(addr => addr.id === selectedAddress)?.address,
-              paymentMethod: deliveryMethod,
-              userId: userId,
-              userName: userName,
-              createdAt: new Date(),
-              status: 'Pending',
-            };
-  
-            console.log("Order Details:", orderDetails);
-  
-            try {
-              const orderRef = doc(collection(firestore, 'orders'));
-              await setDoc(orderRef, orderDetails);
-  
-              const totalPrice = parseFloat(calculateTotalPrice());
-              const pointsToAdd = Math.floor(totalPrice / 5000);
-  
-              if (pointsToAdd > 0) {
-                const userRef = doc(firestore, 'users', userId);
-                const userDoc = await getDoc(userRef);
-                if (userDoc.exists()) {
-                  const userData = userDoc.data();
-                  const currentPoints = userData.points || 0;
-                  await updateDoc(userRef, { points: currentPoints + pointsToAdd });
-                }
-              }
-  
-              // Create the payment request here
-              const publicKey = 'pk_test_aEr3enbHMEoebhxdF66uqWFp'; // Replace with your PayMongo Public Key
-              const secretKey = 'sk_test_S2PQ6b8SM5ueaA6VNKLXLYhh'; 
-  
-              try {
-                const options = {
-                  method: 'POST',
-                  headers: {
-                    accept: 'application/json',
-                    'content-type': 'application/json',
-                    authorization: 'Basic c2tfdGVzdF9DMWhyemR2dmJ5eTlWYW80UXNzbXdBYTQ6'
-                  },
-                  body: JSON.stringify({data: {attributes: {amount: 100000, description: 'elorde', remarks: 'item'}}})
-                };
-                
-                fetch('https://api.paymongo.com/v1/links', options)
-                  .then(response => response.json())
-                  .then(response => console.log(response))
-                  .catch(err => console.error(err));
-  
-                // Navigate to PaymentView and pass the checkout URL
-                if (response.data && response.data.pisopay_checkout_url) {
-                  navigation.navigate('HomeScreen', {
-                    pisopay_checkout_url: response.data.pisopay_checkout_url,
-                  });
-                } else {
-                  Alert.alert('Payment Error', 'Checkout URL not available.');
-                }
-              } catch (error) {
-                console.error('Error creating payment intent:', error);
-                Alert.alert('Payment Error', 'There was an issue with your payment. Please try again.');
-              }
-  
-              Alert.alert('Order Successful', 'Your order has been placed successfully!');
-              clearCart();
-              setLoading(false);
-              navigation.navigate('HomeScreen');
-            } catch (error) {
-              console.error('Error placing order:', error);
-              Alert.alert('Error', 'There was an issue placing your order. Please try again.');
-              setLoading(false);
-            }
+          } catch (error) {
+            console.error("Error fetching user profile: ", error);
+            Alert.alert("Error", "There was an issue fetching the user profile. Please try again.");
+            setLoading(false);
+            return;
           }
-        }
+  
+          const formattedItems = cartItems.map(item => {
+            const product = getProductById(item.id);
+            if (!product) {
+              console.log(`Product with ID ${item.id} not found.`);
+            }
+            return {
+              id: item.id,
+              name: product.name || 'Unknown Product',
+              description: product.description || 'No Description',
+              quantity: item.quantity,
+              price: product.price || 'N/A',
+            };
+          });
+  
+          const orderDetails = {
+            items: formattedItems,
+            total: calculateTotalPrice(),
+            delivery: deliveryMethod,
+            address: addresses.find(addr => addr.id === selectedAddress)?.address,
+            paymentMethod: deliveryMethod,
+            userId: userId,
+            userName: userName, // Add username to the order details
+            createdAt: new Date(),
+            status: 'Pending', // Added orderStatus field
+          };
+  
+          console.log("Order Details:", orderDetails); // Debugging line
+  
+          try {
+            const orderRef = doc(collection(firestore, 'orders'));
+            await setDoc(orderRef, orderDetails);
+  
+            // Add points based on total price
+            const totalPrice = parseFloat(calculateTotalPrice());
+            const pointsToAdd = Math.floor(totalPrice / 5000); // Calculate points based on PHP spent
+  
+            if (pointsToAdd > 0) {
+              const userRef = doc(firestore, 'users', userId);
+              const userDoc = await getDoc(userRef);
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const currentPoints = userData.points || 0;
+                await updateDoc(userRef, { points: currentPoints + pointsToAdd });
+              }
+            }
+  
+            Alert.alert("Order Placed", "Your order has been placed successfully!");
+  
+            // Clear the cart after placing the order
+            clearCart();
+  
+            // Navigate to HomeScreen and pass the order details
+            navigation.navigate('HomeScreen', { orderDetails });
+          } catch (error) {
+            console.error("Error placing order: ", error);
+            Alert.alert("Error", "There was an issue placing your order. Please try again.");
+          } finally {
+            setLoading(false);
+          }
+        }},
       ]
     );
   };
   
-  // Function to calculate total price
+  
+
   const calculateTotalPrice = () => {
-    return cartItems.reduce((acc, item) => {
+    return cartItems.reduce((total, item) => {
       const product = getProductById(item.id);
-      return acc + product.price * item.quantity;
-    }, 0).toFixed(2);
+      const productPrice = parseFloat(product.price.replace('Php', '').replace(',', '')) || 0;
+      return total + productPrice * item.quantity;
+    }, 0).toFixed(2); // Return as a fixed-point number
   };
 
   const renderStepContent = () => {
@@ -356,156 +328,259 @@ const OrderScreen = () => {
               <Text style={styles.deliveryHeader}>Select Delivery Method:</Text>
         
               {/* Cash on Delivery Option */}
-              <TouchableOpacity 
-                onPress={() => setDeliveryMethod('Cash on Delivery')} 
-                style={styles.deliveryOption}>
-                <View style={[
-                  styles.circle,
-                  deliveryMethod === 'Cash on Delivery' ? styles.circleSelected : styles.circleUnselected
-                ]} />
+              <TouchableOpacity
+                onPress={() => setDeliveryMethod('Cash on Delivery')}
+                style={styles.deliveryOption}
+              >
+                <View
+                  style={[
+                    styles.circle,
+                    deliveryMethod === 'Cash on Delivery' ? styles.circleSelected : styles.circleUnselected,
+                  ]}
+                />
                 <View style={styles.codLogoContainer}>
-                  <Image 
-                    source={require('../assets/cod.png')} 
-                    style={styles.gcashLogo} 
-                    resizeMode="contain"/>
+                  <Image source={require('../assets/cod.png')} style={styles.gcashLogo} resizeMode="contain" />
                 </View>
                 <Text style={styles.deliveryOptionText}>Cash on Delivery</Text>
               </TouchableOpacity>
         
               {/* E-Wallet (Gcash) Option */}
-              <TouchableOpacity 
-                onPress={() => setDeliveryMethod('E-Wallet (Gcash)')} 
-                style={styles.deliveryOption}>
+              <TouchableOpacity
+                onPress={() => setDeliveryMethod('E-Wallet (Gcash)')}
+                style={styles.deliveryOption}
+              >
                 <View style={styles.iconTextContainer}>
-                  <View style={[
-                    styles.circle,
-                    deliveryMethod === 'E-Wallet (Gcash)' ? styles.circleSelected : styles.circleUnselected
-                  ]} />
+                  <View
+                    style={[
+                      styles.circle,
+                      deliveryMethod === 'E-Wallet (Gcash)' ? styles.circleSelected : styles.circleUnselected,
+                    ]}
+                  />
                   <View style={styles.gcashLogoContainer}>
-                    <Image 
-                      source={require('../assets/gcashlogo.png')} 
-                      style={styles.gcashLogo} 
-                      resizeMode="contain"/>
+                    <Image
+                      source={require('../assets/gcashlogo.png')}
+                      style={styles.gcashLogo}
+                      resizeMode="contain"
+                    />
                   </View>
+        
                   <Text style={styles.deliveryOptionText}>E-Wallet (GCash)</Text>
                 </View>
               </TouchableOpacity>
         
               {/* Points Option */}
-              <TouchableOpacity 
-                onPress={() => setDeliveryMethod('Points')} 
-                style={styles.deliveryOption}>
+              <TouchableOpacity
+                onPress={() => setDeliveryMethod('Points')}
+                style={styles.deliveryOption}
+              >
                 <View style={styles.iconTextContainer}>
-                  <View style={[
-                    styles.circle,
-                    deliveryMethod === 'Points' ? styles.circleSelected : styles.circleUnselected
-                  ]} />
+                  <View
+                    style={[
+                      styles.circle,
+                      deliveryMethod === 'Points' ? styles.circleSelected : styles.circleUnselected,
+                    ]}
+                  />
                   <View style={styles.gcashLogoContainer}>
                     <Image 
-                      source={require('../assets/points.webp.png')} 
+                      source={require('../assets/points.webp.png')}  
                       style={styles.gcashLogo} 
-                      resizeMode="contain"/>
+                      resizeMode="contain"
+                    />
                   </View>
+        
                   <Text style={styles.deliveryOptionText}>Points</Text>
                 </View>
               </TouchableOpacity>
         
               {/* Next Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => {
-                  if (deliveryMethod === 'E-Wallet (Gcash)') {
-                    // Show confirmation alert if E-Wallet is selected
+                  const totalPrice = calculateTotalPrice(); // Calculate total price
+        
+                  if (deliveryMethod === 'Cash on Delivery') {
                     Alert.alert(
-                      "Confirm Payment",
-                      "Are you sure you want to proceed with E-Wallet (GCash)?",
+                      'Confirm Delivery Method',
+                      'Are you sure you want to proceed with Cash on Delivery?',
                       [
                         {
-                          text: "Cancel",
-                          style: "cancel"
+                          text: 'Cancel',
+                          onPress: () => console.log('Cancelled'),
+                          style: 'cancel',
                         },
                         {
-                          text: "Yes",
+                          text: 'Yes',
                           onPress: () => {
-                            // Redirect to your payment link using PayMongo API
-                            const encodedKey = btoa(`${secretKey}:`);
-        
-                            fetch('https://api.paymongo.com/v1/links', {
-                              method: 'POST',
-                              headers: {
-                                'Authorization': `Basic ${encodedKey}`,
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({
-                                amount: 10000, // Amount in centavos (100.00 PHP)
-                                currency: 'PHP',
-                                description: 'Payment for order #1234',
-                                redirect: {
-                                  success: 'https://your-success-url.com',
-                                  failed: 'https://your-failed-url.com'
-                                }
-                              })
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                              if (data.errors) {
-                                // Handle any errors returned from the API
-                                Alert.alert("Payment Error", data.errors[0].detail);
-                              } else {
-                                // Redirect to the PayMongo payment link
-                                Linking.openURL(data.data.attributes.checkout_url);
-                              }
-                            })
-                            .catch(error => {
-                              console.error('Error:', error);
-                              Alert.alert("Error", "Failed to initiate payment.");
-                            });
-                          }
-                        }
-                      ]
+                            setStep(3);
+                          },
+                        },
+                      ],
+                      { cancelable: false }
                     );
+                  } else if (deliveryMethod === 'E-Wallet (Gcash)') {
+                    Alert.alert(
+                      'Confirm Delivery Method',
+                      'Are you sure you want to proceed with E-Wallet (GCash)?',
+                      [
+                        {
+                          text: 'Cancel',
+                          onPress: () => console.log('Cancelled'),
+                          style: 'cancel',
+                        },
+                        {
+                          text: 'Yes',
+                          onPress: () => {
+                            setStep(3);
+                          },
+                        },
+                      ],
+                      { cancelable: false }
+                    );
+                  } else if (deliveryMethod === 'Points') {
+                    if (points < totalPrice) {
+                      // If points are not enough
+                      Alert.alert(
+                        'Insufficient Points',
+                        `You need ${totalPrice} points to proceed, but you only have ${points} points.`,
+                        [
+                          { text: 'OK', onPress: () => console.log('Insufficient points alert dismissed') }
+                        ],
+                        { cancelable: true }
+                      );
+                    } else {
+                      // If points are enough
+                      Alert.alert(
+                        'Confirm Payment Method',
+                        'Are you sure you want to proceed with Points?',
+                        [
+                          {
+                            text: 'Cancel',
+                            onPress: () => console.log('Cancelled'),
+                            style: 'cancel',
+                          },
+                          {
+                            text: 'Yes',
+                            onPress: () => {
+                              setStep(3);
+                            },
+                          },
+                        ],
+                        { cancelable: false }
+                      );
+                    }
                   } else {
-                    // If not E-Wallet, proceed directly to the next step
-                    setStep(3);
+                    Alert.alert('Select a Delivery Method', 'Please select a delivery method before proceeding.');
                   }
-                }} 
-                style={styles.nextButton}>
+                }}
+                style={styles.nextButton}
+              >
                 <Text style={styles.buttonText}>Next</Text>
               </TouchableOpacity>
             </View>
-          );
-        case 3:
-            return (
-              <View style={styles.stepContent}>
-                <Text style={styles.paymentHeader}>Review and Confirm Order:</Text>
-                <Text style={styles.reviewText}>Total Price: Php {calculateTotalPrice()}</Text>
-                <Text style={styles.reviewText}>Delivery Method: {deliveryMethod}</Text>
-                <Text style={styles.reviewText}>Address: {addresses.find(addr => addr.id === selectedAddress)?.address}</Text>
-                <Text style={styles.reviewText}>Products:</Text>
-                <FlatList
-                  data={cartItems}
-                  keyExtractor={(item) => item.id.toString()}
-                  renderItem={({ item }) => {
-                    const product = getProductById(item.id);
-                    const productTotal = (parseFloat(product.price.replace('Php', '').replace(',', '')) || 0) * item.quantity;
-          
-                    return (
-                      <View style={styles.productItem}>
-                        <Image source={product.image} style={styles.productImage} />
-                        <View style={styles.productDetailsContainer}>
-                          <Text style={styles.productName}>{product.name || 'Unknown Product'}</Text>
-                          <Text style={styles.productDetails}>Quantity: {item.quantity}</Text>
-                          <Text style={styles.productDetails}>Price: {product.price || 'N/A'}</Text>
-                          <Text style={styles.productDetails}>Total: Php {productTotal.toFixed(2)}</Text>
-                        </View>
-                      </View>
-                    );
-                  }}
-                />
-                <TouchableOpacity onPress={handlePlaceOrder} style={styles.placeOrderButton}>
-                  {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.buttonText}>Confirm Order</Text>}
-                </TouchableOpacity>
+          );        
+
+case 3:
+  return (
+    <View style={styles.stepContent}>
+      <Text style={styles.paymentHeader}>Review and Confirm Order:</Text>
+      <Text style={styles.reviewText}>Total Price: Php {calculateTotalPrice()}</Text>
+      <Text style={styles.reviewText}>Delivery Method: {deliveryMethod}</Text>
+      <Text style={styles.reviewText}>Address: {addresses.find(addr => addr.id === selectedAddress)?.address}</Text>
+      <Text style={styles.reviewText}>Products:</Text>
+      <FlatList
+        data={cartItems}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => {
+          const product = getProductById(item.id);
+          const productTotal = (parseFloat(product.price.replace('Php', '').replace(',', '')) || 0) * item.quantity;
+
+          return (
+            <View style={styles.productItem}>
+              <Image source={product.image} style={styles.productImage} />
+              <View style={styles.productDetailsContainer}>
+                <Text style={styles.productName}>{product.name || 'Unknown Product'}</Text>
+                <Text style={styles.productDetails}>Quantity: {item.quantity}</Text>
+                <Text style={styles.productDetails}>Price: {product.price || 'N/A'}</Text>
+                <Text style={styles.productDetails}>Total: Php {productTotal.toFixed(2)}</Text>
               </View>
+            </View>
+          );
+        }}
+      />
+
+      {/* Confirm Order Button */}
+      <TouchableOpacity
+        onPress={async () => {
+          if (deliveryMethod === 'E-Wallet (Gcash)') {
+            Alert.alert(
+              'Confirm Delivery Method',
+              'Are you sure you want to proceed with E-Wallet (GCash)?',
+              [
+                {
+                  text: 'Cancel',
+                  onPress: () => console.log('Cancelled'),
+                  style: 'cancel',
+                },
+                {
+                  text: 'Yes',
+                  onPress: async () => {
+                    const options = {
+                      method: 'POST',
+                      url: 'https://api.paymongo.com/v1/links',
+                      headers: {
+                        accept: 'application/json',
+                        'content-type': 'application/json',
+                        authorization: 'Basic c2tfdGVzdF9DMWhyemR2dmJ5eTlWYW80UXNzbXdBYTQ6',
+                      },
+                      data: {
+                        data: {
+                          attributes: {
+                            amount: 100000, // amount in cents
+                            description: 'elorde',
+                            remarks: 'sarisari',
+                          },
+                        },
+                      },
+                    };
+
+                    try {
+                      const response = await axios.request(options);
+                      console.log('API Response:', response.data);
+
+                      const checkoutUrl = response.data.data?.attributes?.checkout_url;
+
+                      setDeliveryMethod('E-Wallet (Gcash)');
+
+                      if (checkoutUrl && typeof checkoutUrl === 'string') {
+                        Alert.alert('Success', 'E-Wallet selected successfully.', [
+                          {
+                            text: 'Go to Checkout',
+                            onPress: () => {
+                              Linking.openURL(checkoutUrl);
+                            },
+                          },
+                        ]);
+                      } else {
+                        Alert.alert('Error', 'Checkout URL is not available. Please try again.');
+                      }
+                    } catch (error) {
+                      console.error('API call error:', error);
+                      Alert.alert('Error', 'There was an error processing your request. Please try again.');
+                    }
+                  },
+                },
+              ],
+              { cancelable: false }
             );
+          } else {
+            handlePlaceOrder();
+          }
+        }}
+        style={styles.placeOrderButton}
+      >
+        {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.buttonText}>Confirm Order</Text>}
+      </TouchableOpacity>
+    </View>
+  );
           
       default:
         return null;
