@@ -243,9 +243,8 @@ const OrderScreen = () => {
       ]
     );
   };
-  
-  
 
+  
   const calculateTotalPrice = () => {
     return cartItems.reduce((total, item) => {
       const product = getProductById(item.id);
@@ -357,13 +356,8 @@ const OrderScreen = () => {
                     ]}
                   />
                   <View style={styles.gcashLogoContainer}>
-                    <Image
-                      source={require('../assets/gcashlogo.png')}
-                      style={styles.gcashLogo}
-                      resizeMode="contain"
-                    />
+                    <Image source={require('../assets/gcashlogo.png')} style={styles.gcashLogo} resizeMode="contain" />
                   </View>
-        
                   <Text style={styles.deliveryOptionText}>E-Wallet (GCash)</Text>
                 </View>
               </TouchableOpacity>
@@ -381,13 +375,8 @@ const OrderScreen = () => {
                     ]}
                   />
                   <View style={styles.gcashLogoContainer}>
-                    <Image 
-                      source={require('../assets/points.webp.png')}  
-                      style={styles.gcashLogo} 
-                      resizeMode="contain"
-                    />
+                    <Image source={require('../assets/points.webp.png')} style={styles.gcashLogo} resizeMode="contain" />
                   </View>
-        
                   <Text style={styles.deliveryOptionText}>Points</Text>
                 </View>
               </TouchableOpacity>
@@ -404,14 +393,11 @@ const OrderScreen = () => {
                       [
                         {
                           text: 'Cancel',
-                          onPress: () => console.log('Cancelled'),
                           style: 'cancel',
                         },
                         {
                           text: 'Yes',
-                          onPress: () => {
-                            setStep(3);
-                          },
+                          onPress: () => setStep(3),
                         },
                       ],
                       { cancelable: false }
@@ -423,49 +409,27 @@ const OrderScreen = () => {
                       [
                         {
                           text: 'Cancel',
-                          onPress: () => console.log('Cancelled'),
                           style: 'cancel',
                         },
                         {
                           text: 'Yes',
-                          onPress: () => {
-                            setStep(3);
-                          },
+                          onPress: () => setStep(3),
                         },
                       ],
                       { cancelable: false }
                     );
                   } else if (deliveryMethod === 'Points') {
                     if (points < totalPrice) {
-                      // If points are not enough
+                      // Alert if points are insufficient
                       Alert.alert(
                         'Insufficient Points',
                         `You need ${totalPrice} points to proceed, but you only have ${points} points.`,
-                        [
-                          { text: 'OK', onPress: () => console.log('Insufficient points alert dismissed') }
-                        ],
+                        [{ text: 'OK' }],
                         { cancelable: true }
                       );
                     } else {
-                      // If points are enough
-                      Alert.alert(
-                        'Confirm Payment Method',
-                        'Are you sure you want to proceed with Points?',
-                        [
-                          {
-                            text: 'Cancel',
-                            onPress: () => console.log('Cancelled'),
-                            style: 'cancel',
-                          },
-                          {
-                            text: 'Yes',
-                            onPress: () => {
-                              setStep(3);
-                            },
-                          },
-                        ],
-                        { cancelable: false }
-                      );
+                      // Points are sufficient, proceed to next step
+                      setStep(3);
                     }
                   } else {
                     Alert.alert('Select a Delivery Method', 'Please select a delivery method before proceeding.');
@@ -476,111 +440,126 @@ const OrderScreen = () => {
                 <Text style={styles.buttonText}>Next</Text>
               </TouchableOpacity>
             </View>
-          );        
-
-case 3:
-  return (
-    <View style={styles.stepContent}>
-      <Text style={styles.paymentHeader}>Review and Confirm Order:</Text>
-      <Text style={styles.reviewText}>Total Price: Php {calculateTotalPrice()}</Text>
-      <Text style={styles.reviewText}>Delivery Method: {deliveryMethod}</Text>
-      <Text style={styles.reviewText}>Address: {addresses.find(addr => addr.id === selectedAddress)?.address}</Text>
-      <Text style={styles.reviewText}>Products:</Text>
-      <FlatList
-        data={cartItems}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => {
-          const product = getProductById(item.id);
-          const productTotal = (parseFloat(product.price.replace('Php', '').replace(',', '')) || 0) * item.quantity;
-
-          return (
-            <View style={styles.productItem}>
-              <Image source={product.image} style={styles.productImage} />
-              <View style={styles.productDetailsContainer}>
-                <Text style={styles.productName}>{product.name || 'Unknown Product'}</Text>
-                <Text style={styles.productDetails}>Quantity: {item.quantity}</Text>
-                <Text style={styles.productDetails}>Price: {product.price || 'N/A'}</Text>
-                <Text style={styles.productDetails}>Total: Php {productTotal.toFixed(2)}</Text>
-              </View>
-            </View>
           );
-        }}
-      />
+        
 
-      {/* Confirm Order Button */}
-      <TouchableOpacity
-        onPress={async () => {
-          if (deliveryMethod === 'E-Wallet (Gcash)') {
-            Alert.alert(
-              'Confirm Delivery Method',
-              'Are you sure you want to proceed with E-Wallet (GCash)?',
-              [
-                {
-                  text: 'Cancel',
-                  onPress: () => console.log('Cancelled'),
-                  style: 'cancel',
-                },
-                {
-                  text: 'Yes',
-                  onPress: async () => {
-                    const options = {
-                      method: 'POST',
-                      url: 'https://api.paymongo.com/v1/links',
-                      headers: {
-                        accept: 'application/json',
-                        'content-type': 'application/json',
-                        authorization: 'Basic c2tfdGVzdF9DMWhyemR2dmJ5eTlWYW80UXNzbXdBYTQ6',
-                      },
-                      data: {
-                        data: {
-                          attributes: {
-                            amount: 100000, // amount in cents
-                            description: 'elorde',
-                            remarks: 'sarisari',
-                          },
-                        },
-                      },
-                    };
-
-                    try {
-                      const response = await axios.request(options);
-                      console.log('API Response:', response.data);
-
-                      const checkoutUrl = response.data.data?.attributes?.checkout_url;
-
-                      setDeliveryMethod('E-Wallet (Gcash)');
-
-                      if (checkoutUrl && typeof checkoutUrl === 'string') {
-                        Alert.alert('Success', 'E-Wallet selected successfully.', [
+          case 3:
+            return (
+              <View style={styles.stepContent}>
+                <Text style={styles.paymentHeader}>Review and Confirm Order:</Text>
+                <Text style={styles.reviewText}>Total Price: Php {calculateTotalPrice()}</Text>
+                <Text style={styles.reviewText}>Delivery Method: {deliveryMethod}</Text>
+                <Text style={styles.reviewText}>Address: {addresses.find(addr => addr.id === selectedAddress)?.address}</Text>
+                <Text style={styles.reviewText}>Products:</Text>
+                <FlatList
+                  data={cartItems}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => {
+                    const product = getProductById(item.id);
+                    const productTotal = (parseFloat(product.price.replace('Php', '').replace(',', '')) || 0) * item.quantity;
+          
+                    return (
+                      <View style={styles.productItem}>
+                        <Image source={product.image} style={styles.productImage} />
+                        <View style={styles.productDetailsContainer}>
+                          <Text style={styles.productName}>{product.name || 'Unknown Product'}</Text>
+                          <Text style={styles.productDetails}>Quantity: {item.quantity}</Text>
+                          <Text style={styles.productDetails}>Price: {product.price || 'N/A'}</Text>
+                          <Text style={styles.productDetails}>Total: Php {productTotal.toFixed(2)}</Text>
+                        </View>
+                      </View>
+                    );
+                  }}
+                />
+          
+                {/* Confirm Order Button */}
+                <TouchableOpacity
+                  onPress={async () => {
+                    if (deliveryMethod === 'Points') {
+                      Alert.alert(
+                        'Confirm Payment',
+                        'Are you sure you want to proceed with Points?',
+                        [
                           {
-                            text: 'Go to Checkout',
+                            text: 'Cancel',
+                            style: 'cancel',
+                          },
+                          {
+                            text: 'Yes',
                             onPress: () => {
-                              Linking.openURL(checkoutUrl);
+                              // Navigate to ProfileScreen and deduct points there
+                              navigation.navigate('ProfileScreen', { totalPrice: calculateTotalPrice() });
                             },
                           },
-                        ]);
-                      } else {
-                        Alert.alert('Error', 'Checkout URL is not available. Please try again.');
-                      }
-                    } catch (error) {
-                      console.error('API call error:', error);
-                      Alert.alert('Error', 'There was an error processing your request. Please try again.');
+                        ],
+                        { cancelable: false }
+                      );
+                    } else if (deliveryMethod === 'E-Wallet (Gcash)') {
+                      Alert.alert(
+                        'Confirm Delivery Method',
+                        'Are you sure you want to proceed with E-Wallet (GCash)?',
+                        [
+                          {
+                            text: 'Cancel',
+                            style: 'cancel',
+                          },
+                          {
+                            text: 'Yes',
+                            onPress: async () => {
+                              const options = {
+                                method: 'POST',
+                                url: 'https://api.paymongo.com/v1/links',
+                                headers: {
+                                  accept: 'application/json',
+                                  'content-type': 'application/json',
+                                  authorization: 'Basic c2tfdGVzdF9DMWhyemR2dmJ5eTlWYW80UXNzbXdBYTQ6',
+                                },
+                                data: {
+                                  data: {
+                                    attributes: {
+                                      amount: calculateTotalPrice() * 100, // amount in cents
+                                      description: 'Purchase',
+                                      remarks: 'Sari-sari store',
+                                    },
+                                  },
+                                },
+                              };
+          
+                              try {
+                                const response = await axios.request(options);
+                                const checkoutUrl = response.data.data?.attributes?.checkout_url;
+          
+                                if (checkoutUrl) {
+                                  Alert.alert('Success', 'Proceed to checkout.', [
+                                    {
+                                      text: 'Go to Checkout',
+                                      onPress: () => {
+                                        Linking.openURL(checkoutUrl);
+                                      },
+                                    },
+                                  ]);
+                                } else {
+                                  Alert.alert('Error', 'Checkout URL not available. Try again.');
+                                }
+                              } catch (error) {
+                                Alert.alert('Error', 'Failed to process request. Please try again.');
+                              }
+                            },
+                          },
+                        ],
+                        { cancelable: false }
+                      );
+                    } else {
+                      handlePlaceOrder();
                     }
-                  },
-                },
-              ],
-              { cancelable: false }
+                  }}
+                  style={styles.placeOrderButton}
+                >
+                  {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.buttonText}>Confirm Order</Text>}
+                </TouchableOpacity>
+              </View>
             );
-          } else {
-            handlePlaceOrder();
-          }
-        }}
-        style={styles.placeOrderButton}
-      >
-        {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.buttonText}>Confirm Order</Text>}
-      </TouchableOpacity>
-    </View>
-  );
+          
           
       default:
         return null;

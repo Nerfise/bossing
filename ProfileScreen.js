@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Alert, ScrollView } from 'react-native';
 import { Avatar, Input, Button } from 'react-native-elements';
 import { FontAwesome } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { getAuth, updateProfile, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker'; // Add ImagePicker import
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const auth = getAuth();
   const firestore = getFirestore();
-  const storage = getStorage();
-  
+
   const [user, setUser] = useState(auth.currentUser);
   const [displayName, setDisplayName] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -22,7 +21,7 @@ const ProfileScreen = () => {
   const [address, setAddress] = useState('');
   const [points, setPoints] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // Add missing loading state
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
@@ -38,7 +37,6 @@ const ProfileScreen = () => {
   useEffect(() => {
     if (user) {
       const userDocRef = doc(firestore, 'users', user.uid);
-      
       const unsubscribe = onSnapshot(userDocRef, (doc) => {
         const userData = doc.data();
         if (userData) {
@@ -51,10 +49,36 @@ const ProfileScreen = () => {
         }
       });
 
-      return () => unsubscribe(); // Clean up listener on unmount
+      return () => unsubscribe();
     }
   }, [user]);
 
+  // Deduct points logic
+  const deductPoints = async (totalPrice) => {
+    if (points >= totalPrice) {
+      const newPoints = points - totalPrice;
+      try {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        await updateDoc(userDocRef, { points: newPoints });
+        setPoints(newPoints); // Update state with the new points
+        Alert.alert('Success', 'Your order has been placed, and points have been deducted.');
+      } catch (error) {
+        console.error('Error updating points:', error);
+        Alert.alert('Error', 'There was an issue deducting points.');
+      }
+    } else {
+      Alert.alert('Error', 'Insufficient points. Unable to place the order.');
+    }
+  };
+
+  useEffect(() => {
+    const totalPrice = route.params?.totalPrice;
+    if (totalPrice) {
+      deductPoints(totalPrice);
+    }
+  }, [route.params?.totalPrice]);
+
+  // Profile update
   const handleProfileUpdate = async () => {
     setLoading(true);
     try {
@@ -83,7 +107,7 @@ const ProfileScreen = () => {
         phone,
         address,
         points,
-      }, { merge: true }); // Use merge to only update fields that have changed
+      }, { merge: true });
 
       setIsEditing(false);
       Alert.alert('Profile Updated', 'Your profile has been successfully updated.');
@@ -95,12 +119,14 @@ const ProfileScreen = () => {
     }
   };
 
+  // Purchase points
   const handlePurchasePoints = async (purchaseAmount) => {
     if (purchaseAmount >= 5000) {
       const newPoints = points + Math.floor(purchaseAmount / 5000);
       try {
         const userDocRef = doc(firestore, 'users', user.uid);
         await updateDoc(userDocRef, { points: newPoints });
+        setPoints(newPoints); // Update state with new points
         Alert.alert('Points Added', `You've earned ${Math.floor(purchaseAmount / 5000)} points! Your total points: ${newPoints}`);
       } catch (error) {
         console.error('Error updating points:', error);
@@ -109,6 +135,7 @@ const ProfileScreen = () => {
     }
   };
 
+  // Redeem points
   const handleRedeemPoints = async () => {
     if (points < 5) {
       Alert.alert('Not Enough Points', 'You need at least 5 points to redeem.');
@@ -118,6 +145,7 @@ const ProfileScreen = () => {
     try {
       const userDocRef = doc(firestore, 'users', user.uid);
       await updateDoc(userDocRef, { points: newPoints });
+      setPoints(newPoints); // Update state with new points
       Alert.alert('Points Redeemed', 'You have successfully redeemed 5 points!');
     } catch (error) {
       console.error('Error redeeming points:', error);
@@ -125,6 +153,7 @@ const ProfileScreen = () => {
     }
   };
 
+  // Image picker
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -142,6 +171,7 @@ const ProfileScreen = () => {
     }
   };
 
+  // Confirm logout
   const confirmLogout = () => {
     Alert.alert(
       'Logout Confirmation',
@@ -160,6 +190,7 @@ const ProfileScreen = () => {
     );
   };
 
+  // Handle logout
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -171,6 +202,7 @@ const ProfileScreen = () => {
     }
   };
 
+  // View history
   const handleViewHistory = () => {
     navigation.navigate('HistoryScreen', { points });
   };
@@ -257,7 +289,6 @@ const ProfileScreen = () => {
             buttonStyle={styles.editButton}
           />
         )}
-        
         <Button
           title="View History"
           onPress={handleViewHistory}
