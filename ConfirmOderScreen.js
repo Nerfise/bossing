@@ -243,8 +243,9 @@ const OrderScreen = () => {
       ]
     );
   };
-
   
+  
+
   const calculateTotalPrice = () => {
     return cartItems.reduce((total, item) => {
       const product = getProductById(item.id);
@@ -356,8 +357,13 @@ const OrderScreen = () => {
                     ]}
                   />
                   <View style={styles.gcashLogoContainer}>
-                    <Image source={require('../assets/gcashlogo.png')} style={styles.gcashLogo} resizeMode="contain" />
+                    <Image
+                      source={require('../assets/gcashlogo.png')}
+                      style={styles.gcashLogo}
+                      resizeMode="contain"
+                    />
                   </View>
+        
                   <Text style={styles.deliveryOptionText}>E-Wallet (GCash)</Text>
                 </View>
               </TouchableOpacity>
@@ -375,8 +381,13 @@ const OrderScreen = () => {
                     ]}
                   />
                   <View style={styles.gcashLogoContainer}>
-                    <Image source={require('../assets/points.webp.png')} style={styles.gcashLogo} resizeMode="contain" />
+                    <Image 
+                      source={require('../assets/points.webp.png')}  
+                      style={styles.gcashLogo} 
+                      resizeMode="contain"
+                    />
                   </View>
+        
                   <Text style={styles.deliveryOptionText}>Points</Text>
                 </View>
               </TouchableOpacity>
@@ -393,11 +404,14 @@ const OrderScreen = () => {
                       [
                         {
                           text: 'Cancel',
+                          onPress: () => console.log('Cancelled'),
                           style: 'cancel',
                         },
                         {
                           text: 'Yes',
-                          onPress: () => setStep(3),
+                          onPress: () => {
+                            setStep(3);
+                          },
                         },
                       ],
                       { cancelable: false }
@@ -409,27 +423,49 @@ const OrderScreen = () => {
                       [
                         {
                           text: 'Cancel',
+                          onPress: () => console.log('Cancelled'),
                           style: 'cancel',
                         },
                         {
                           text: 'Yes',
-                          onPress: () => setStep(3),
+                          onPress: () => {
+                            setStep(3);
+                          },
                         },
                       ],
                       { cancelable: false }
                     );
                   } else if (deliveryMethod === 'Points') {
                     if (points < totalPrice) {
-                      // Alert if points are insufficient
+                      // If points are not enough
                       Alert.alert(
                         'Insufficient Points',
                         `You need ${totalPrice} points to proceed, but you only have ${points} points.`,
-                        [{ text: 'OK' }],
+                        [
+                          { text: 'OK', onPress: () => console.log('Insufficient points alert dismissed') }
+                        ],
                         { cancelable: true }
                       );
                     } else {
-                      // Points are sufficient, proceed to next step
-                      setStep(3);
+                      // If points are enough
+                      Alert.alert(
+                        'Confirm Payment Method',
+                        'Are you sure you want to proceed with Points?',
+                        [
+                          {
+                            text: 'Cancel',
+                            onPress: () => console.log('Cancelled'),
+                            style: 'cancel',
+                          },
+                          {
+                            text: 'Yes',
+                            onPress: () => {
+                              setStep(3);
+                            },
+                          },
+                        ],
+                        { cancelable: false }
+                      );
                     }
                   } else {
                     Alert.alert('Select a Delivery Method', 'Please select a delivery method before proceeding.');
@@ -440,8 +476,7 @@ const OrderScreen = () => {
                 <Text style={styles.buttonText}>Next</Text>
               </TouchableOpacity>
             </View>
-          );
-        
+          );        
 
           case 3:
             return (
@@ -475,32 +510,14 @@ const OrderScreen = () => {
                 {/* Confirm Order Button */}
                 <TouchableOpacity
                   onPress={async () => {
-                    if (deliveryMethod === 'Points') {
-                      Alert.alert(
-                        'Confirm Payment',
-                        'Are you sure you want to proceed with Points?',
-                        [
-                          {
-                            text: 'Cancel',
-                            style: 'cancel',
-                          },
-                          {
-                            text: 'Yes',
-                            onPress: () => {
-                              // Navigate to ProfileScreen and deduct points there
-                              navigation.navigate('ProfileScreen', { totalPrice: calculateTotalPrice() });
-                            },
-                          },
-                        ],
-                        { cancelable: false }
-                      );
-                    } else if (deliveryMethod === 'E-Wallet (Gcash)') {
+                    if (deliveryMethod === 'E-Wallet (Gcash)') {
                       Alert.alert(
                         'Confirm Delivery Method',
                         'Are you sure you want to proceed with E-Wallet (GCash)?',
                         [
                           {
                             text: 'Cancel',
+                            onPress: () => console.log('Cancelled'),
                             style: 'cancel',
                           },
                           {
@@ -518,8 +535,8 @@ const OrderScreen = () => {
                                   data: {
                                     attributes: {
                                       amount: calculateTotalPrice() * 100, // amount in cents
-                                      description: 'Purchase',
-                                      remarks: 'Sari-sari store',
+                                      description: 'Order Payment',
+                                      remarks: 'Payment for order',
                                     },
                                   },
                                 },
@@ -527,10 +544,14 @@ const OrderScreen = () => {
           
                               try {
                                 const response = await axios.request(options);
+                                console.log('API Response:', response.data);
+          
                                 const checkoutUrl = response.data.data?.attributes?.checkout_url;
           
-                                if (checkoutUrl) {
-                                  Alert.alert('Success', 'Proceed to checkout.', [
+                                setDeliveryMethod('E-Wallet (Gcash)');
+          
+                                if (checkoutUrl && typeof checkoutUrl === 'string') {
+                                  Alert.alert('Success', 'E-Wallet selected successfully.', [
                                     {
                                       text: 'Go to Checkout',
                                       onPress: () => {
@@ -539,10 +560,11 @@ const OrderScreen = () => {
                                     },
                                   ]);
                                 } else {
-                                  Alert.alert('Error', 'Checkout URL not available. Try again.');
+                                  Alert.alert('Error', 'Checkout URL is not available. Please try again.');
                                 }
                               } catch (error) {
-                                Alert.alert('Error', 'Failed to process request. Please try again.');
+                                console.error('API call error:', error);
+                                Alert.alert('Error', 'There was an error processing your request. Please try again.');
                               }
                             },
                           },
@@ -559,7 +581,6 @@ const OrderScreen = () => {
                 </TouchableOpacity>
               </View>
             );
-          
           
       default:
         return null;
