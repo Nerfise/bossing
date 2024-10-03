@@ -166,7 +166,7 @@ const OrderScreen = () => {
             const userRef = doc(firestore, 'users', userId);
             const userSnap = await getDoc(userRef);
             if (userSnap.exists()) {
-              userName = userSnap.data().displayName; // Ensure correct field name
+              userName = userSnap.data().displayName;
               if (!userName) {
                 throw new Error("User name not found");
               }
@@ -202,20 +202,20 @@ const OrderScreen = () => {
             address: addresses.find(addr => addr.id === selectedAddress)?.address,
             paymentMethod: deliveryMethod,
             userId: userId,
-            userName: userName, // Add username to the order details
+            userName: userName, 
             createdAt: new Date(),
-            status: 'Pending', // Added orderStatus field
+            status: 'Pending',
           };
   
           try {
             const orderRef = doc(collection(firestore, 'orders'));
             await setDoc(orderRef, orderDetails);
   
-            if (deliveryMethod === 'Points') {
-              const userRef = doc(firestore, 'users', userId);
-              const userDoc = await getDoc(userRef);
-              const currentPoints = userDoc.data().points || 0;
+            const userRef = doc(firestore, 'users', userId);
+            const userDoc = await getDoc(userRef);
+            const currentPoints = userDoc.data().points || 0;
   
+            if (deliveryMethod === 'Points') {
               if (currentPoints >= totalPrice) {
                 await updateDoc(userRef, { points: currentPoints - totalPrice });
                 Alert.alert("Points Deducted", `Your points have been deducted by ${totalPrice}.`);
@@ -223,11 +223,16 @@ const OrderScreen = () => {
                 Alert.alert("Insufficient Points", "You do not have enough points to complete this transaction.");
                 return;
               }
+            } else {
+              // Add points for Cash on Delivery or E-Wallet payment methods
+              const pointsToAdd = Math.floor(totalPrice / 5000); // 1 point per 5000 PHP
+              await updateDoc(userRef, { points: currentPoints + pointsToAdd });
+              Alert.alert("Points Added", `You have earned ${pointsToAdd} points.`);
             }
   
             Alert.alert("Order Placed", "Your order has been placed successfully!");
             clearCart();
-            navigation.navigate('HomeScreen', { orderDetails }); // Navigate to HistoryScreen
+            navigation.navigate('HomeScreen', { orderDetails }); 
           } catch (error) {
             console.error("Error placing order: ", error);
             Alert.alert("Error", "There was an issue placing your order. Please try again.");
@@ -237,7 +242,7 @@ const OrderScreen = () => {
         }},
       ]
     );
-  };  
+  };
   
   const calculateTotalPrice = () => {
     return cartItems.reduce((total, item) => {
@@ -502,76 +507,99 @@ const OrderScreen = () => {
           
                 {/* Confirm Order Button */}
                 <TouchableOpacity
-                  onPress={async () => {
-                    if (deliveryMethod === 'E-Wallet (Gcash)') {
-                      Alert.alert(
-                        'Confirm Delivery Method',
-                        'Are you sure you want to proceed with E-Wallet (GCash)?',
-                        [
-                          {
-                            text: 'Cancel',
-                            onPress: () => console.log('Cancelled'),
-                            style: 'cancel',
-                          },
-                          {
-                            text: 'Yes',
-                            onPress: async () => {
-                              const options = {
-                                method: 'POST',
-                                url: 'https://api.paymongo.com/v1/links',
-                                headers: {
-                                  accept: 'application/json',
-                                  'content-type': 'application/json',
-                                  authorization: 'Basic c2tfdGVzdF9DMWhyemR2dmJ5eTlWYW80UXNzbXdBYTQ6',
-                                },
-                                data: {
-                                  data: {
-                                    attributes: {
-                                      amount: calculateTotalPrice() * 100, // amount in cents
-                                      description: 'Order Payment',
-                                      remarks: 'Payment for order',
-                                    },
-                                  },
-                                },
-                              };
-          
-                              try {
-                                const response = await axios.request(options);
-                                console.log('API Response:', response.data);
-          
-                                const checkoutUrl = response.data.data?.attributes?.checkout_url;
-          
-                                setDeliveryMethod('E-Wallet (Gcash)');
-          
-                                if (checkoutUrl && typeof checkoutUrl === 'string') {
-                                  Alert.alert('Success', 'E-Wallet selected successfully.', [
-                                    {
-                                      text: 'Go to Checkout',
-                                      onPress: () => {
-                                        Linking.openURL(checkoutUrl);
-                                      },
-                                    },
-                                  ]);
-                                } else {
-                                  Alert.alert('Error', 'Checkout URL is not available. Please try again.');
-                                }
-                              } catch (error) {
-                                console.error('API call error:', error);
-                                Alert.alert('Error', 'There was an error processing your request. Please try again.');
-                              }
-                            },
-                          },
-                        ],
-                        { cancelable: false }
-                      );
-                    } else {
-                      handlePlaceOrder();
-                    }
-                  }}
-                  style={styles.placeOrderButton}
-                >
-                  {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.buttonText}>Confirm Order</Text>}
-                </TouchableOpacity>
+  onPress={async () => {
+    if (deliveryMethod === 'E-Wallet (Gcash)') {
+      Alert.alert(
+        'Confirm Delivery Method',
+        'Are you sure you want to proceed with E-Wallet (GCash)?',
+        [
+          {
+            text: 'Cancel',
+            onPress: () => console.log('Cancelled'),
+            style: 'cancel',
+          },
+          {
+            text: 'Yes',
+            onPress: async () => {
+              const options = {
+                method: 'POST',
+                url: 'https://api.paymongo.com/v1/links',
+                headers: {
+                  accept: 'application/json',
+                  'content-type': 'application/json',
+                  authorization: 'Basic c2tfdGVzdF9DMWhyemR2dmJ5eTlWYW80UXNzbXdBYTQ6', // Test API key
+                },
+                data: {
+                  data: {
+                    attributes: {
+                      amount: calculateTotalPrice() * 100, // amount in cents
+                      description: 'Order Payment',
+                      remarks: 'Payment for order',
+                    },
+                  },
+                },
+              };
+
+              try {
+                const response = await axios.request(options);
+                console.log('API Response:', response.data);
+
+                const checkoutUrl = response.data.data?.attributes?.checkout_url;
+
+                // Consider the transaction completed before redirecting to checkout URL
+                const orderDetails = {
+                  items: cartItems.map(item => ({
+                    id: item.id,
+                    name: getProductById(item.id).name,
+                    quantity: item.quantity,
+                    price: getProductById(item.id).price,
+                  })),
+                  total: calculateTotalPrice(),
+                  deliveryMethod: deliveryMethod,
+                  address: addresses.find(addr => addr.id === selectedAddress)?.address,
+                  paymentMethod: deliveryMethod,
+                  status: 'Pending Payment', // Status before payment
+                  createdAt: new Date(),
+                };
+
+                // Save the transaction to the database (e.g., Firestore)
+                try {
+                  const orderRef = doc(collection(firestore, 'orders'));
+                  await setDoc(orderRef, orderDetails);
+                  Alert.alert("Order Placed", "Your payment is being processed!");
+                  
+                  // Clear cart and navigate to HomeScreen
+                  clearCart(); 
+                  navigation.navigate('HomeScreen', { orderDetails });
+
+                } catch (dbError) {
+                  console.error("Error saving order: ", dbError);
+                  Alert.alert("Error", "There was an issue placing your order.");
+                }
+
+                // Redirect to external payment link
+                if (checkoutUrl && typeof checkoutUrl === 'string') {
+                  Linking.openURL(checkoutUrl); // Open the payment link
+                } else {
+                  Alert.alert('Error', 'Checkout URL is not available.');
+                }
+              } catch (error) {
+                console.error('API call error:', error);
+                Alert.alert('Error', 'There was an error processing your request.');
+              }
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    } else {
+      handlePlaceOrder(); // Handle the normal order process
+    }
+  }}
+  style={styles.placeOrderButton}
+>
+  {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.buttonText}>Confirm Order</Text>}
+</TouchableOpacity>
               </View>
             );
           
