@@ -194,9 +194,10 @@ const OrderScreen = () => {
             };
           });
   
+          const totalPrice = calculateTotalPrice();
           const orderDetails = {
             items: formattedItems,
-            total: calculateTotalPrice(),
+            total: totalPrice,
             delivery: deliveryMethod,
             address: addresses.find(addr => addr.id === selectedAddress)?.address,
             paymentMethod: deliveryMethod,
@@ -206,33 +207,27 @@ const OrderScreen = () => {
             status: 'Pending', // Added orderStatus field
           };
   
-          console.log("Order Details:", orderDetails); // Debugging line
-  
           try {
             const orderRef = doc(collection(firestore, 'orders'));
             await setDoc(orderRef, orderDetails);
   
-            // Add points based on total price
-            const totalPrice = parseFloat(calculateTotalPrice());
-            const pointsToAdd = Math.floor(totalPrice / 5000); // Calculate points based on PHP spent
-  
-            if (pointsToAdd > 0) {
+            if (deliveryMethod === 'Points') {
               const userRef = doc(firestore, 'users', userId);
               const userDoc = await getDoc(userRef);
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                const currentPoints = userData.points || 0;
-                await updateDoc(userRef, { points: currentPoints + pointsToAdd });
+              const currentPoints = userDoc.data().points || 0;
+  
+              if (currentPoints >= totalPrice) {
+                await updateDoc(userRef, { points: currentPoints - totalPrice });
+                Alert.alert("Points Deducted", `Your points have been deducted by ${totalPrice}.`);
+              } else {
+                Alert.alert("Insufficient Points", "You do not have enough points to complete this transaction.");
+                return;
               }
             }
   
             Alert.alert("Order Placed", "Your order has been placed successfully!");
-  
-            // Clear the cart after placing the order
             clearCart();
-  
-            // Navigate to HomeScreen and pass the order details
-            navigation.navigate('HomeScreen', { orderDetails });
+            navigation.navigate('HomeScreen', { orderDetails }); // Navigate to HistoryScreen
           } catch (error) {
             console.error("Error placing order: ", error);
             Alert.alert("Error", "There was an issue placing your order. Please try again.");
@@ -242,10 +237,8 @@ const OrderScreen = () => {
         }},
       ]
     );
-  };
+  };  
   
-  
-
   const calculateTotalPrice = () => {
     return cartItems.reduce((total, item) => {
       const product = getProductById(item.id);
