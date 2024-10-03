@@ -566,23 +566,31 @@ const OrderScreen = () => {
                 try {
                   const orderRef = doc(collection(firestore, 'orders'));
                   await setDoc(orderRef, orderDetails);
-                  Alert.alert("Order Placed", "Your payment is being processed!");
-                  
-                  // Clear cart and navigate to HomeScreen
-                  clearCart(); 
-                  navigation.navigate('HomeScreen', { orderDetails });
+
+                  // Redirect the user to the payment link first
+                  if (checkoutUrl && typeof checkoutUrl === 'string') {
+                    Linking.openURL(checkoutUrl); // Open the payment link
+
+                    // Show alert after user goes to checkout URL
+                    setTimeout(() => {
+                      Alert.alert("Order Placed", "Your payment is being processed!");
+                    }, 1000); // Delay alert by 1 second after the user goes to checkout
+
+                    // After 3 seconds, navigate to HomeScreen
+                    setTimeout(() => {
+                      clearCart(); // Clear the cart
+                      navigation.navigate('HomeScreen', { orderDetails });
+                    }, 3000); // Navigate after 3 seconds
+
+                  } else {
+                    Alert.alert('Error', 'Checkout URL is not available.');
+                  }
 
                 } catch (dbError) {
                   console.error("Error saving order: ", dbError);
                   Alert.alert("Error", "There was an issue placing your order.");
                 }
 
-                // Redirect to external payment link
-                if (checkoutUrl && typeof checkoutUrl === 'string') {
-                  Linking.openURL(checkoutUrl); // Open the payment link
-                } else {
-                  Alert.alert('Error', 'Checkout URL is not available.');
-                }
               } catch (error) {
                 console.error('API call error:', error);
                 Alert.alert('Error', 'There was an error processing your request.');
